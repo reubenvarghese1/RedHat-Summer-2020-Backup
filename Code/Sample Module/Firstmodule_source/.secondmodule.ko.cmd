@@ -1,0 +1,1 @@
+cmd_/home/rvarghes/Projects/Firstmodule/secondmodule.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000 -T ./scripts/module-common.lds  --build-id  -o /home/rvarghes/Projects/Firstmodule/secondmodule.ko /home/rvarghes/Projects/Firstmodule/secondmodule.o /home/rvarghes/Projects/Firstmodule/secondmodule.mod.o ;  true

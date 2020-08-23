@@ -1,0 +1,3 @@
+0xf68966ba	print_hello	/home/rvarghes/Projects/Firstmodule/firstmodule	EXPORT_SYMBOL
+0x412bf961	add_two_numbers	/home/rvarghes/Projects/Firstmodule/firstmodule	EXPORT_SYMBOL
+0x9617634a	JUST_A_TEST_VARIABLE	/home/rvarghes/Projects/Firstmodule/firstmodule	EXPORT_SYMBOL
