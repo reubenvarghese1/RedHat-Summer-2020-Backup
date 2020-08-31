@@ -1,3 +1,25 @@
+WIP Changes made:
+
+- Depmod_load_single_Module : This function essentially is to add a single depmod module instead of having to search all the directories like depmod -a does. Logic for loading details from existing output files to be written.
+https://github.com/reubenvarghese1/RedHat-Summer-2020-Backup/blob/0b731190f5db21b67d16fd962408a013351dbdef/Code/Kmod/source/kmod/tools/depmod.c#L2607
+
+- Depmod_remove_single_module : Removes a single module should we figure that this module is not compatible when loading. By this time, none of the output files have yet been overwritten. Similar to depmod_del_module but not the same. 
+https://github.com/reubenvarghese1/RedHat-Summer-2020-Backup/blob/0b731190f5db21b67d16fd962408a013351dbdef/Code/Kmod/source/kmod/tools/depmod.c#L2607
+
+- Depmod_determine_if_compatible: Checks if module with name exists in hash and then tries to load it, if not then it returns an error.
+https://github.com/reubenvarghese1/RedHat-Summer-2020-Backup/blob/0b731190f5db21b67d16fd962408a013351dbdef/Code/Kmod/source/kmod/tools/depmod.c#L2668
+
+- Depmod_symbol_remove : Essentially removes a symbol. This is to remove all the symbols of an incompatible module.
+https://github.com/reubenvarghese1/RedHat-Summer-2020-Backup/blob/0b731190f5db21b67d16fd962408a013351dbdef/Code/Kmod/source/kmod/tools/depmod.c#L1473
+
+- Module should not load if dependency loading fails. Not sure if this is intended but I feel it makes sense. That being said, if modules are loaded even in cases when dependencies are not met then due to crc issues, then we could introduce a new cfg parameter called strict_check to prevent the loading if any dependency isnt loaded etc.
+https://github.com/reubenvarghese1/RedHat-Summer-2020-Backup/blob/0b731190f5db21b67d16fd962408a013351dbdef/Code/Kmod/source/kmod/tools/depmod.c#L1641
+
+List of changes to be discussed:
+
+- Move from storing hash of symbols with symbol name as key to making the crc key. Because from my understanding symbols with duplicate names may exist but crc will be unique.
+
+
 - Initially detect cycles used to just throw a warning as shown here https://github.com/lucasdemarchi/kmod/blob/650f89cd2510820a71dfc1b004634a309f12ecf1/tools/depmod.c#L1659 . Later, it was pointed out that developers would have to check the logs each time to realize that there is a cycle. This however, should not be a warning but an error. Hence, later it was changed to an error. Similarly, it is worth debating that https://github.com/lucasdemarchi/kmod/blob/650f89cd2510820a71dfc1b004634a309f12ecf1/tools/depmod.c#L1534 should also throw an error instead of just a warning since the module which requires this dependency will surely not work if this is not right. Another suggestion would be to check if the dependency is being found for a single module or as part of depmod -a. If for a single module then probably throw an error to prevent installation.
 
 - Determine what kind of refactoring would be needed(as suggested by Stanislav). Submit that to upstream. Then, slowly keep adding to it and extending the functionality instead of submitting a bunch of changes all at once.
