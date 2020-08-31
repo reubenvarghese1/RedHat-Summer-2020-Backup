@@ -1470,6 +1470,29 @@ corrupted:
 	fclose(fp);
 }
 
+static int depmod_symbol_remove(struct depmod *depmod, struct symbol *sym)
+{
+    if (sym == NULL)
+        return -ENOMEM;
+
+    // Again symbols stored by name as value, I feel symbols can have same name but crc is always the fingerprint
+    // Hence, since we have access to both when we have access to the symbol struct, rather change the key to crc to make it unique always.
+    // Have to investigate the feasibility of this.
+    err = hash_del(depmod->symbols, sym->name);
+    if (err < 0) {
+        DBG("Error removing %p sym=%s, owner=%p %s\n", sym, sym->name, owner,
+            owner != NULL ? owner->path : "");
+        return err;
+    }
+
+    DBG("Removed %p sym=%s, owner=%p %s\n", sym, sym->name, owner,
+        owner != NULL ? owner->path : "");
+
+    free(sym);
+
+    return 0;
+}
+
 static int depmod_symbol_add(struct depmod *depmod, const char *name,
 					bool prefix_skipped, uint64_t crc,
 					const struct mod *owner)
@@ -2582,12 +2605,30 @@ static int depmod_output(struct depmod *depmod, FILE *out)
 }
 
 static void depmod_remove_single_module(struct depmod *depmod, struct mod *mod) {
-    //logic yet to be written
+    //logic yet to be written completely. As in we may have missed a few more steps
+    // We surely have to remove this from the hash
+    // Also have to remove the list of symbols provided by this module
+    // In my opinion no other modules should be using the module yet because this function is expected to called only when a new module is being inserted
+    // A slight modification to be done would be to check if strict check is enabled. IF yes then it should return an error and all the list of modules
+    //that were being inserted right now along with this module should also fail installation
+    struct kmod_list *l, *list = NULL;
+    int err = kmod_module_get_symbols(mod->kmod, &list);
+    kmod_list_foreach(l, list) {
+        const char *name = kmod_module_symbol_get_symbol(l);
+        struct symbol *sym = depmod_symbol_find(depmod, name);
+        if (sym == NULL) {
+            DBG("Unknown symbol %s\n");
+            continue;
+        }
+        depmod_symbol_remove(depmod, symbol);
+    }
+    hash_del(depmod->modules_by_name,mod);
+    free(mod);
 }
 
 //instead of checking for all. just add single module like weak modules does. The modules to add are given in the command line
 //this will skip th graph regeneration
-static int depmod_load_single_modules(struct depmod *depmod, struct mod *mod)
+static int depmod_load_single_module(struct depmod *depmod, struct mod *mod)
 {
     struct mod *mod = *itr;
     struct kmod_list *l, *list = NULL;
@@ -2610,9 +2651,10 @@ static int depmod_load_single_modules(struct depmod *depmod, struct mod *mod)
     load_info:
     kmod_module_get_info(mod->kmod, &mod->info_list);
     if(kmod_module_get_dependency_symbols(mod->kmod,
-                                       &mod->dep_sym_list)) {
+                                       &mod->dep_sym_list)<0) {
         //undo what we just did i.e. adding symbols etc, return an error
         depmod_remove_single_module(depmod, mod);
+        return -1;
     }
     kmod_module_unref(mod->kmod);
     mod->kmod = NULL;
@@ -2634,10 +2676,16 @@ static int depmod_determine_if_compatible(struct depmod *depmod, const char *mod
         // depmod search could not find the module in any of the kernel folders. This should only be used in conjunction
         // with external enabled with wildcard so as to facilitate searching all kernel installations.
     }
+    // if module is found then next step is to check if it is compatible. We do this by calling load single module function
 
+    int err = depmod_load_single_module(depmod, mod);
 
+    if(err!=0){
+        ERR("Module '%s' could not be loaded \n", mod->modname);
+        return err;
+    }
 
-
+    return 0;
 }
 
 
@@ -2708,7 +2756,7 @@ static int depmod_load_system_map(struct depmod *depmod, const char *filename)
 	FILE *fp;
 	unsigned int linenum = 0;
 
-	fp = fopen(filename, "r");
+	fp = fopen(filename, "rvoid");
 	if (fp == NULL) {
 		int err = -errno;
 		DBG("load System.map: %s: %m\n", filename);
@@ -2903,8 +2951,8 @@ static int do_depmod(int argc, char *argv[])
 		if (c == -1)
 			break;
 		switch (c) {
-		    case 'N':
-		        cfg.strict_check = 1;
+        case 'N':
+            cfg.strict_check = 1;
 		case 'a':
 			all = 1;
 			break;
